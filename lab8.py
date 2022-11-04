@@ -7,6 +7,8 @@ from tkinter import messagebox as mb
 from tkinter import simpledialog as sd
 from typing import Callable
 import numpy as np
+import pygame as pg
+from threading import Thread
 
 
 class Projection(Enum):
@@ -136,7 +138,7 @@ class Point(Shape):
             return self.x == __o.x and self.y == __o.y and self.z == __o.z
         return False
 
-    def draw(self, canvas: tk.Canvas, projection: Projection, color: str = 'white', draw_points: bool = True):
+    def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = True):
         if projection == Projection.Perspective:
             # print(App.dist)
             per = np.array([
@@ -149,6 +151,7 @@ class Point(Shape):
             x = res[0]/res[3] + 450
             y = res[1]/res[3] + 250
             z = res[2]/res[3]
+
         elif projection == Projection.Axonometric:
             #print(App.phi, App.theta)
             phi = App.phi*(pi/180)
@@ -163,33 +166,34 @@ class Point(Shape):
             x = res[0] + 600
             y = res[1] + 250
             z = res[2]
+
         elif projection == Projection.FreeCamera:
-            print("camera")
-            print(Camera.position)
+            # print("camera")
+            # print(Camera.position)
             camTarget = np.array([0.0, 0.0, 0.0])
-            camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
+            camDir = np.array([Camera.position.x, Camera.position.y, Camera.position.z]) - camTarget
             camDir = camDir / np.linalg.norm(camDir)
 
-            upVec = np.array([0.0,1.0,0.0])
-            camRight = np.cross(upVec,camDir)
+            upVec = np.array([0.0, 1.0, 0.0])
+            camRight = np.cross(upVec, camDir)
             camRight = camRight / np.linalg.norm(camRight)
-            camUp = np.cross(camDir,camRight)
+            camUp = np.cross(camDir, camRight)
 
             mat1 = np.array([
-                [camRight[0],camRight[1],camRight[2],0],
-                [camUp[0], camUp[1], camUp[2],0],
-                [camDir[0], camDir[1], camDir[2],0],
-                [0,0,0,1]
+                [camRight[0], camRight[1], camRight[2], 0],
+                [camUp[0], camUp[1], camUp[2], 0],
+                [camDir[0], camDir[1], camDir[2], 0],
+                [0, 0, 0, 1]
             ])
             mat1 = mat1.T
             mat2 = np.array([
-                [1,0,0,-Camera.position.x],
-                [0,1,0,-Camera.position.y],
-                [0,0,1,-Camera.position.z],
-                [0,0,0,1]
+                [1, 0, 0, -Camera.position.x],
+                [0, 1, 0, -Camera.position.y],
+                [0, 0, 1, -Camera.position.z],
+                [0, 0, 0, 1]
             ])
             #mat2 = mat2.T
-            lookMat = np.matmul(mat1,mat2)
+            lookMat = np.matmul(mat1, mat2)
 
             coor = np.array([self.x, self.y, self.z, 1])
             res = np.matmul(coor, lookMat)
@@ -202,7 +206,7 @@ class Point(Shape):
             y = self.y
             z = self.z
         if draw_points:
-            canvas.create_oval(x - 2, y - 2, x + 2, y + 2, fill=color)
+            canvas.set_at((int(x), int(y)), pg.Color(color))
         return x, y, z
 
     def __iter__(self):
@@ -235,15 +239,17 @@ class Point(Shape):
             return self
         return Point(self.x/norm, self.y/norm, self.z/norm)
 
+
 @dataclass
 class Line(Shape):
     p1: Point
     p2: Point
 
-    def draw(self, canvas: tk.Canvas, projection: Projection, color: str = 'white', draw_points: bool = False):
+    def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
         p1X, p1Y, _ = self.p1.draw(canvas, projection, color, draw_points)
         p2X, p2Y, _ = self.p2.draw(canvas, projection, color, draw_points=draw_points)
-        canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
+        pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
+        # canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
 
     def transform(self, matrix: np.ndarray):
         self.p1.transform(matrix)
@@ -304,6 +310,7 @@ class Polygon(Shape):
             normal.y += (currentv.z - nextv.z) * (currentv.x + nextv.x)
             normal.z += (currentv.x - nextv.x) * (currentv.y + nextv.y)
         return normal.normalized()
+
 
 @dataclass
 class Polyhedron(Shape):
@@ -480,9 +487,10 @@ class FuncPlot(Shape):
     def center(self) -> Point:
         return self._polyhedron.center
 
+
 @dataclass
 class Camera:
-    position = Point(-1000,1000,1000)
+    position = Point(-1000, 1000, 1000)
     horRot = 0.0
     verRot = 0.0
 
@@ -490,6 +498,7 @@ class Camera:
     #     self.position = Point(0,0,300)
     #     self.horRot = 0
     #     self.verRot = 0
+
 
 class Models:
     """
@@ -653,7 +662,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("ManualCAD 4D")
         self.resizable(0, 0)
-        self.geometry(f"{self.W}x{self.H}")
+        self.geometry(f"{self.W}x{70}")
         self.shape_type_idx = 0
         self.shape_type = ShapeType(self.shape_type_idx)
         self.func_idx = 0
@@ -661,9 +670,12 @@ class App(tk.Tk):
         self.projection_idx = 0
         self.projection = Projection(self.projection_idx)
         self.create_widgets()
+        pg.init()
 
     def create_widgets(self):
-        self.canvas = tk.Canvas(self, width=self.W, height=self.H - 75, bg="#393939")
+        self.canvas = pg.display.set_mode((self.W, self.H))
+        self.canvas.fill('#393939')
+        pg.display.update()
         self.buttons = tk.Frame(self)
         self.translateb = tk.Button(
             self.buttons, text="Смещение", command=self.translate)
@@ -697,8 +709,8 @@ class App(tk.Tk):
         self.scroll3 = tk.Scrollbar(
             self.buttons, orient=tk.VERTICAL, command=self._scroll3)
 
-        self.canvas.pack()
-        self.canvas.config(cursor="cross")
+        # self.canvas.pack()
+        # self.canvas.config(cursor="cross")
         self.buttons.pack(fill=tk.X)
         self.translateb.pack(side=tk.LEFT, padx=5)
         self.rotateb.pack(side=tk.LEFT, padx=5)
@@ -737,8 +749,8 @@ class App(tk.Tk):
         self.projectionsbox.insert(tk.END, *Projection)
         self.projectionsbox.selection_set(0)
 
-        self.canvas.bind("<Button-1>", self.l_click)
-        self.canvas.bind("<Button-3>", self.r_click)
+        # self.bind("<Button-1>", self.l_click)
+        # self.bind("<Button-3>", self.r_click)
         self.bind("<Escape>", self.reset)
         self.bind("<KeyPress>", self.key_pressed)
         self.bind("<F1>", self.camset)
@@ -748,7 +760,8 @@ class App(tk.Tk):
         Camera.position = Point(x, y, z)
 
     def reset(self, *_, del_shape=True):
-        self.canvas.delete("all")
+        self.canvas.fill('#393939')
+        # pg.display.update()
         if del_shape:
             self.shape = None
 
@@ -808,6 +821,7 @@ class App(tk.Tk):
         self.shape.transform(mat)
         self.reset(del_shape=False)
         self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def scale(self):
         inp = sd.askstring(
@@ -823,6 +837,7 @@ class App(tk.Tk):
         self.shape.transform(mat)
         self.reset(del_shape=False)
         self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def translate(self):
         inp = sd.askstring(
@@ -838,6 +853,7 @@ class App(tk.Tk):
         self.shape.transform(mat)
         self.reset(del_shape=False)
         self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def _scroll1(self, *args):
         try:
@@ -872,26 +888,31 @@ class App(tk.Tk):
             self.reset(del_shape=False)
             if self.shape is not None:
                 self.shape.draw(self.canvas, self.projection)
+            pg.display.update()
 
     def _dist_changed(self, *_):
         App.dist = self.dists.get()
         self.reset(del_shape=False)
         if self.shape is not None:
             self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def _phi_changed(self, *_):
         App.phi = self.phis.get()
         self.reset(del_shape=False)
         if self.shape is not None:
             self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def _theta_changed(self, *_):
         App.theta = self.thetas.get()
         self.reset(del_shape=False)
         if self.shape is not None:
             self.shape.draw(self.canvas, self.projection)
+        pg.display.update()
 
     def l_click(self, _: tk.Event):
+        print('left click')
         self.reset()
         match self.shape_type:
             case ShapeType.Tetrahedron:
@@ -904,29 +925,11 @@ class App(tk.Tk):
                 self.shape = Models.Icosahedron()
             case ShapeType.Dodecahedron:
                 self.shape = Models.Dodecahedron()
-            case ShapeType.RotationBody:
-                inp = sd.askstring("Параметры", "Введите набор точек, ось вращения и количество разбиений через запятую:")
-                if inp is None:
-                    return
-                *points, axis, patritions = inp.split(',')
-                if not len(points) % 3 == 0:
-                    return
-                poly = []
-                for i in range(0, len(points), 3):
-                    poly.append(Point(float(points[i]), float(points[i + 1]), float(points[i + 2])))
-                self.shape = RotationBody(Polygon(poly), axis.strip().upper(), int(patritions))
-                # Coin: 0, 0, 0, 0, 100, 0, 0, 0, 100, Y, 120
-            case ShapeType.FuncPlot:
-                inp = sd.askstring(
-                    "Параметры", "Введите функцию, диапазонамы отсечения [x0, x1] и [y0, y1], количество разбиений по x и y через запятую:")
-                if inp is None:
-                    return
-                func, x0, x1, y0, y1, nx, ny = map(str.strip, inp.split(','))
-                self.shape = FuncPlot(func, float(x0), float(x1), float(y0), float(y1), int(nx), int(ny))
+        if self.shape is not None:
+            self.shape.draw(self.canvas, self.projection)
+            pg.display.update()
 
-        self.shape.draw(self.canvas, self.projection)
-
-    def r_click(self, _: tk.Event):
+    def r_click(self, _: pg.event.Event):
         if self.shape is None:
             return
         match self.func:
@@ -1090,8 +1093,49 @@ class App(tk.Tk):
             if path:
                 self.shape.save(path)
 
+        elif event.keysym == 'r':
+            if ShapeType.RotationBody:
+                inp = sd.askstring("Параметры", "Введите набор точек, ось вращения и количество разбиений через запятую:")
+                if inp is None:
+                    return
+                *points, axis, patritions = inp.split(',')
+                if not len(points) % 3 == 0:
+                    return
+                poly = []
+                for i in range(0, len(points), 3):
+                    poly.append(Point(float(points[i]), float(points[i + 1]), float(points[i + 2])))
+                self.shape = RotationBody(Polygon(poly), axis.strip().upper(), int(patritions))
+                # Coin: 0, 0, 0, 0, 100, 0, 0, 0, 100, Y, 120
+                self.shape.draw(self.canvas, self.projection)
+                pg.display.update()
+
+        elif event.keysym == 'f':
+            if ShapeType.FuncPlot:
+                inp = sd.askstring(
+                    "Параметры", "Введите функцию, диапазонамы отсечения [x0, x1] и [y0, y1], количество разбиений по x и y через запятую:")
+                if inp is None:
+                    return
+                func, x0, x1, y0, y1, nx, ny = map(str.strip, inp.split(','))
+                self.shape = FuncPlot(func, float(x0), float(x1), float(y0), float(y1), int(nx), int(ny))
+                self.shape.draw(self.canvas, self.projection)
+                pg.display.update()
+
     def run(self):
+        Thread(target=self._pg_mainloop).start()
         self.mainloop()
+
+    def destroy(self) -> None:
+        pg.quit()
+        super().destroy()
+
+    def _pg_mainloop(self):
+        while True:
+            for e in pg.event.get():
+                if e.type == pg.MOUSEBUTTONDOWN:
+                    if e.button == 1:
+                        self.l_click(e.pos)
+                    elif e.button == 3:
+                        self.r_click(e.pos)
 
 
 if __name__ == "__main__":
