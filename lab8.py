@@ -703,6 +703,7 @@ class App(tk.Tk):
         self.projection_idx = 0
         self.projection = Projection(self.projection_idx)
         self.create_widgets()
+        pg.display.set_caption("Viewport")
         pg.init()
 
     def create_widgets(self):
@@ -945,7 +946,6 @@ class App(tk.Tk):
         pg.display.update()
 
     def l_click(self, _: tk.Event):
-        print('left click')
         self.reset()
         match self.shape_type:
             case ShapeType.Tetrahedron:
@@ -1186,13 +1186,13 @@ class App(tk.Tk):
                     if e.key == pg.K_w:
                         Camera.is_moving = False
                         Camera.moving.Forward = False
-                    elif e.key == pg.K_s:
+                    if e.key == pg.K_s:
                         Camera.is_moving = False
                         Camera.moving.Backward = False
-                    elif e.key == pg.K_a:
+                    if e.key == pg.K_a:
                         Camera.is_moving = False
                         Camera.moving.Left = False
-                    elif e.key == pg.K_d:
+                    if e.key == pg.K_d:
                         Camera.is_moving = False
                         Camera.moving.Right = False
             if Camera.is_moving:
@@ -1205,8 +1205,9 @@ class App(tk.Tk):
                 if Camera.moving.Right:
                     Camera.move_right()
                 self.reset(del_shape=False)
-                self.shape.draw(self.canvas, self.projection)
-                pg.display.update()
+                if self.shape is not None:
+                    self.shape.draw(self.canvas, self.projection)
+                    pg.display.update()
 
 
 if __name__ == "__main__":
