@@ -167,18 +167,36 @@ class Point(Shape):
             print("camera")
             print(Camera.position)
             camTarget = np.array([0.0, 0.0, 0.0])
-            per = np.array([
-                [1, 0, 0, -1 / Camera.position.x],
-                [0, 1, 0, -1 / Camera.position.y],
-                [0, 0, 1, -1 / Camera.position.z],
-                [0, 0, 0, 1]])        
+            camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
+            camDir = camDir / np.linalg.norm(camDir)
+            
+            upVec = np.array([0.0,1.0,0.0])
+            camRight = np.cross(upVec,camDir)
+            camRight = camRight / np.linalg.norm(camRight)       
+            camUp = np.cross(camDir,camRight)
+            
+            mat1 = np.array([
+                [camRight[0],camRight[1],camRight[2],0],
+                [camUp[0], camUp[1], camUp[2],0],
+                [camDir[0], camDir[1], camDir[2],0],
+                [0,0,0,1]
+            ])
+            mat1 = mat1.T
+            mat2 = np.array([
+                [1,0,0,-Camera.position.x],
+                [0,1,0,-Camera.position.y],
+                [0,0,1,-Camera.position.z],
+                [0,0,0,1]
+            ])
+            #mat2 = mat2.T
+            lookMat = np.matmul(mat1,mat2)
             
             coor = np.array([self.x, self.y, self.z, 1])
-            res = np.matmul(coor, per)
+            res = np.matmul(coor, lookMat)
             
-            x = res[0]/res[3] + 450
-            y = res[1]/res[3] + 250
-            z = res[2]/res[3]
+            x = res[0] + 450
+            y = res[1] + 200
+            z = res[2]
         else:
             x = self.x
             y = self.y
@@ -464,7 +482,7 @@ class FuncPlot(Shape):
 
 @dataclass
 class Camera:
-    position = Point(1,1,1000)
+    position = Point(-1000,1000,1000)
     horRot = 0.0
     verRot = 0.0
     
