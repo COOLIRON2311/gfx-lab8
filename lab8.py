@@ -12,6 +12,7 @@ import numpy as np
 class Projection(Enum):
     Perspective = 0
     Axonometric = 1
+    FreeCamera = 2
 
     def __str__(self) -> str:
         match self:
@@ -19,6 +20,8 @@ class Projection(Enum):
                 return "Перспективная"
             case Projection.Axonometric:
                 return "Аксонометрическая"
+            case Projection.FreeCamera:
+                return "Свободная камера"
         return "Неизвестная проекция"
 
 
@@ -160,6 +163,22 @@ class Point(Shape):
             x = res[0] + 600
             y = res[1] + 250
             z = res[2]
+        elif projection == Projection.FreeCamera:
+            print("camera")
+            print(Camera.position)
+            camTarget = np.array([0.0, 0.0, 0.0])
+            per = np.array([
+                [1, 0, 0, -1 / Camera.position.x],
+                [0, 1, 0, -1 / Camera.position.y],
+                [0, 0, 1, -1 / Camera.position.z],
+                [0, 0, 0, 1]])        
+            
+            coor = np.array([self.x, self.y, self.z, 1])
+            res = np.matmul(coor, per)
+            
+            x = res[0]/res[3] + 450
+            y = res[1]/res[3] + 250
+            z = res[2]/res[3]
         else:
             x = self.x
             y = self.y
@@ -421,6 +440,16 @@ class FuncPlot(Shape):
     def center(self) -> Point:
         return self._polyhedron.center
 
+@dataclass
+class Camera:
+    position = Point(1,1,1000)
+    horRot = 0.0
+    verRot = 0.0
+    
+    # def __init__(self):
+    #     self.position = Point(0,0,300)
+    #     self.horRot = 0
+    #     self.verRot = 0
 
 class Models:
     """
