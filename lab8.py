@@ -1,15 +1,17 @@
 import tkinter as tk
 from dataclasses import dataclass, field
 from enum import Enum
-from math import cos, pi, radians, sin, sqrt
+from math import cos, pi, radians, sin
+from threading import Thread
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
 from tkinter import simpledialog as sd
 from typing import Callable
+
 import numpy as np
 import pygame as pg
-from threading import Thread
 
+# pylint: disable=no-member
 
 class Projection(Enum):
     Perspective = 0
@@ -488,16 +490,47 @@ class FuncPlot(Shape):
         return self._polyhedron.center
 
 
-@dataclass
 class Camera:
+    is_moving = False
+
+    class moving:
+        Forward = False
+        Backward = False
+        Left = False
+        Right = False
     position = Point(-1000, 1000, 1000)
     horRot = 0.0
     verRot = 0.0
+    camFront = np.array([0, 0, -1])
+    camSpeed = 10
 
-    # def __init__(self):
-    #     self.position = Point(0,0,300)
-    #     self.horRot = 0
-    #     self.verRot = 0
+    @staticmethod
+    def move_forward():
+        Camera.position.x += Camera.camFront[0] * Camera.camSpeed
+        Camera.position.y += Camera.camFront[1] * Camera.camSpeed
+        Camera.position.z += Camera.camFront[2] * Camera.camSpeed
+
+    @staticmethod
+    def move_backward():
+        Camera.position.x -= Camera.camFront[0] * Camera.camSpeed
+        Camera.position.y -= Camera.camFront[1] * Camera.camSpeed
+        Camera.position.z -= Camera.camFront[2] * Camera.camSpeed
+
+    @staticmethod
+    def move_left():
+        r = np.cross(Camera.camFront, [0, 1, 0])
+        r = r / np.linalg.norm(r)
+        Camera.position.x += r[0] * Camera.camSpeed
+        Camera.position.y += r[1] * Camera.camSpeed
+        Camera.position.z += r[2] * Camera.camSpeed
+
+    @staticmethod
+    def move_right():
+        r = np.cross(Camera.camFront, [0, 1, 0])
+        r = r / np.linalg.norm(r)
+        Camera.position.x -= r[0] * Camera.camSpeed
+        Camera.position.y -= r[1] * Camera.camSpeed
+        Camera.position.z -= r[2] * Camera.camSpeed
 
 
 class Models:
@@ -753,7 +786,7 @@ class App(tk.Tk):
         # self.bind("<Button-3>", self.r_click)
         self.bind("<Escape>", self.reset)
         self.bind("<KeyPress>", self.key_pressed)
-        self.bind("<F1>", self.camset)
+        # self.bind("<F1>", self.camset)
 
     def camset(self, *_):
         x, y, z = map(int, sd.askstring("Камера", "Введите координаты камеры через пробел").split())
@@ -1136,6 +1169,44 @@ class App(tk.Tk):
                         self.l_click(e.pos)
                     elif e.button == 3:
                         self.r_click(e.pos)
+                if e.type == pg.KEYDOWN:
+                    if e.key == pg.K_w:
+                        Camera.is_moving = True
+                        Camera.moving.Forward = True
+                    elif e.key == pg.K_s:
+                        Camera.is_moving = True
+                        Camera.moving.Backward = True
+                    elif e.key == pg.K_a:
+                        Camera.is_moving = True
+                        Camera.moving.Left = True
+                    elif e.key == pg.K_d:
+                        Camera.is_moving = True
+                        Camera.moving.Right = True
+                elif e.type == pg.KEYUP:
+                    if e.key == pg.K_w:
+                        Camera.is_moving = False
+                        Camera.moving.Forward = False
+                    elif e.key == pg.K_s:
+                        Camera.is_moving = False
+                        Camera.moving.Backward = False
+                    elif e.key == pg.K_a:
+                        Camera.is_moving = False
+                        Camera.moving.Left = False
+                    elif e.key == pg.K_d:
+                        Camera.is_moving = False
+                        Camera.moving.Right = False
+            if Camera.is_moving:
+                if Camera.moving.Forward:
+                    Camera.move_forward()
+                if Camera.moving.Backward:
+                    Camera.move_backward()
+                if Camera.moving.Left:
+                    Camera.move_left()
+                if Camera.moving.Right:
+                    Camera.move_right()
+                self.reset(del_shape=False)
+                self.shape.draw(self.canvas, self.projection)
+                pg.display.update()
 
 
 if __name__ == "__main__":
