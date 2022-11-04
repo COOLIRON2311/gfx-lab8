@@ -12,6 +12,7 @@ import numpy as np
 import pygame as pg
 
 # pylint: disable=no-member
+# pylint: disable=eval-used
 
 class Projection(Enum):
     Perspective = 0
@@ -695,7 +696,7 @@ class App(tk.Tk):
         super().__init__()
         self.title("ManualCAD 4D")
         self.resizable(0, 0)
-        self.geometry(f"{self.W}x{70}")
+        self.geometry(f"{self.W}x{70}+0+0")
         self.shape_type_idx = 0
         self.shape_type = ShapeType(self.shape_type_idx)
         self.func_idx = 0
