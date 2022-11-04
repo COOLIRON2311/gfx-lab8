@@ -1,7 +1,7 @@
 import tkinter as tk
 from dataclasses import dataclass, field
 from enum import Enum
-from math import cos, pi, radians, sin
+from math import cos, pi, radians, sin, sqrt
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
 from tkinter import simpledialog as sd
@@ -211,6 +211,11 @@ class Point(Shape):
     def center(self) -> 'Point':
         return Point(self.x, self.y, self.z)
 
+    def normalized(self) -> 'Point':
+        norm = sqrt(self.x**2 + self.y**2 + self.z**2)
+        if norm == 0:
+            return self
+        return Point(self.x/norm, self.y/norm, self.z/norm)
 
 @dataclass
 class Line(Shape):
@@ -239,6 +244,10 @@ class Line(Shape):
 @dataclass
 class Polygon(Shape):
     points: list[Point]
+    normal: Point = field(init=False)
+
+    def __post_init__(self):
+        self.normal = self.calculate_normal()
 
     def draw(self, canvas: tk.Canvas, projection: Projection, color: str = 'white', draw_points: bool = False):
         ln = len(self.points)
@@ -246,10 +255,12 @@ class Polygon(Shape):
                  for i in range(ln)]
         for line in lines:
             line.draw(canvas, projection, color, draw_points)
+        self.normal.draw(canvas, projection, 'red', draw_points=True)
 
     def transform(self, matrix: np.ndarray):
         for point in self.points:
             point.transform(matrix)
+        self.normal.transform(matrix)
 
     def highlight(self, canvas: tk.Canvas, timeout: int = 200, r: int = 5):
         for point in self.points:
@@ -264,6 +275,17 @@ class Polygon(Shape):
                      sum(point.y for point in self.points) / len(self.points),
                      sum(point.z for point in self.points) / len(self.points))
 
+    def calculate_normal(self) -> Point:
+        """Calculate the normal of the polygon using Newell's method"""
+        normal = Point(0, 0, 0)
+        ln = len(self.points)
+        for i in range(ln):
+            currentv = self.points[i]
+            nextv = self.points[(i + 1) % ln]
+            normal.x += (currentv.y - nextv.y) * (currentv.z + nextv.z)
+            normal.y += (currentv.z - nextv.z) * (currentv.x + nextv.x)
+            normal.z += (currentv.x - nextv.x) * (currentv.y + nextv.y)
+        return normal.normalized()
 
 @dataclass
 class Polyhedron(Shape):
