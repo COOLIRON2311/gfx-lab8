@@ -169,12 +169,12 @@ class Point(Shape):
             camTarget = np.array([0.0, 0.0, 0.0])
             camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
             camDir = camDir / np.linalg.norm(camDir)
-            
+
             upVec = np.array([0.0,1.0,0.0])
             camRight = np.cross(upVec,camDir)
-            camRight = camRight / np.linalg.norm(camRight)       
+            camRight = camRight / np.linalg.norm(camRight)
             camUp = np.cross(camDir,camRight)
-            
+
             mat1 = np.array([
                 [camRight[0],camRight[1],camRight[2],0],
                 [camUp[0], camUp[1], camUp[2],0],
@@ -190,10 +190,10 @@ class Point(Shape):
             ])
             #mat2 = mat2.T
             lookMat = np.matmul(mat1,mat2)
-            
+
             coor = np.array([self.x, self.y, self.z, 1])
             res = np.matmul(coor, lookMat)
-            
+
             x = res[0] + 450
             y = res[1] + 200
             z = res[2]
@@ -230,7 +230,7 @@ class Point(Shape):
         return Point(self.x, self.y, self.z)
 
     def normalized(self) -> 'Point':
-        norm = sqrt(self.x**2 + self.y**2 + self.z**2)
+        norm = np.linalg.norm([self.x, self.y, self.z])
         if norm == 0:
             return self
         return Point(self.x/norm, self.y/norm, self.z/norm)
@@ -485,7 +485,7 @@ class Camera:
     position = Point(-1000,1000,1000)
     horRot = 0.0
     verRot = 0.0
-    
+
     # def __init__(self):
     #     self.position = Point(0,0,300)
     #     self.horRot = 0
@@ -741,6 +741,11 @@ class App(tk.Tk):
         self.canvas.bind("<Button-3>", self.r_click)
         self.bind("<Escape>", self.reset)
         self.bind("<KeyPress>", self.key_pressed)
+        self.bind("<F1>", self.camset)
+
+    def camset(self, *_):
+        x, y, z = map(int, sd.askstring("Камера", "Введите координаты камеры через пробел").split())
+        Camera.position = Point(x, y, z)
 
     def reset(self, *_, del_shape=True):
         self.canvas.delete("all")
