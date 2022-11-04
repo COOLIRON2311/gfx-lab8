@@ -136,6 +136,30 @@ class Point(Shape):
             return self.x == __o.x and self.y == __o.y and self.z == __o.z
         return False
 
+    def createLookMat(self, camTarget, upVec):
+        print("LookMat")
+        camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
+        camDir = camDir / np.linalg.norm(camDir)
+        camRight = np.cross(upVec,camDir)
+        camRight = camRight / np.linalg.norm(camRight)
+        camUp = np.cross(camDir,camRight)
+        mat1 = np.array([
+            [camRight[0],camRight[1],camRight[2],0],
+            [camUp[0], camUp[1], camUp[2],0],
+            [camDir[0], camDir[1], camDir[2],0],
+            [0,0,0,1]
+        ])
+        mat1 = mat1.T
+        mat2 = np.array([
+            [1,0,0,-Camera.position.x],
+            [0,1,0,-Camera.position.y],
+            [0,0,1,-Camera.position.z],
+            [0,0,0,1]
+        ])
+        #mat2 = mat2.T
+        lookMat = np.matmul(mat1,mat2)
+        return lookMat      
+
     def draw(self, canvas: tk.Canvas, projection: Projection, color: str = 'white', draw_points: bool = True):
         if projection == Projection.Perspective:
             # print(App.dist)
@@ -166,30 +190,7 @@ class Point(Shape):
         elif projection == Projection.FreeCamera:
             print("camera")
             print(Camera.position)
-            camTarget = np.array([0.0, 0.0, 0.0])
-            camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
-            camDir = camDir / np.linalg.norm(camDir)
-
-            upVec = np.array([0.0,1.0,0.0])
-            camRight = np.cross(upVec,camDir)
-            camRight = camRight / np.linalg.norm(camRight)
-            camUp = np.cross(camDir,camRight)
-
-            mat1 = np.array([
-                [camRight[0],camRight[1],camRight[2],0],
-                [camUp[0], camUp[1], camUp[2],0],
-                [camDir[0], camDir[1], camDir[2],0],
-                [0,0,0,1]
-            ])
-            mat1 = mat1.T
-            mat2 = np.array([
-                [1,0,0,-Camera.position.x],
-                [0,1,0,-Camera.position.y],
-                [0,0,1,-Camera.position.z],
-                [0,0,0,1]
-            ])
-            #mat2 = mat2.T
-            lookMat = np.matmul(mat1,mat2)
+            lookMat = self.createLookMat([0,0, 0],np.array([0.0,1.0,0.0]))
 
             coor = np.array([self.x, self.y, self.z, 1])
             res = np.matmul(coor, lookMat)
@@ -482,7 +483,7 @@ class FuncPlot(Shape):
 
 @dataclass
 class Camera:
-    position = Point(-1000,1000,1000)
+    position = Point(100,500,1000)
     horRot = 0.0
     verRot = 0.0
 
@@ -648,6 +649,8 @@ class App(tk.Tk):
     phi: int = 60
     theta: int = 45
     dist: int = 1000
+    camSpeed = 10
+    camFront = np.array([0.0,0.0,-1.0])
 
     def __init__(self):
         super().__init__()
@@ -1085,10 +1088,42 @@ class App(tk.Tk):
                 self.reset(del_shape=False)
                 self.shape.draw(self.canvas, self.projection)
 
+        # elif event.keysym == 's':
+        #     path = fd.asksaveasfilename(filetypes=[('Файлы с фигурами', '*.shape')])
+        #     if path:
+        #         self.shape.save(path)
+        elif event.keysym == 'w':
+            Camera.position.x += App.camSpeed*App.camFront[0]
+            Camera.position.y += App.camSpeed*App.camFront[1]
+            Camera.position.z += App.camSpeed*App.camFront[2]                      
+            self.reset(del_shape=False)
+            if self.shape is not None:
+                self.shape.draw(self.canvas, self.projection)         
         elif event.keysym == 's':
-            path = fd.asksaveasfilename(filetypes=[('Файлы с фигурами', '*.shape')])
-            if path:
-                self.shape.save(path)
+            Camera.position.x -= App.camSpeed*App.camFront[0]
+            Camera.position.y -= App.camSpeed*App.camFront[1]
+            Camera.position.z -= App.camSpeed*App.camFront[2]
+            self.reset(del_shape=False) 
+            if self.shape is not None:
+                self.shape.draw(self.canvas, self.projection)
+        elif event.keysym == 'a':
+            res = np.cross(App.camFront,np.array([0,1,0]))
+            res = res / np.linalg.norm(res)
+            Camera.position.x += App.camSpeed*res[0]
+            Camera.position.y += App.camSpeed*res[1]
+            Camera.position.z += App.camSpeed*res[2]                      
+            self.reset(del_shape=False)
+            if self.shape is not None:
+                self.shape.draw(self.canvas, self.projection)   
+        elif event.keysym == 'd':
+            res = np.cross(App.camFront,np.array([0,1,0]))
+            res = res / np.linalg.norm(res)
+            Camera.position.x -= App.camSpeed*res[0]
+            Camera.position.y -= App.camSpeed*res[1]
+            Camera.position.z -= App.camSpeed*res[2]                      
+            self.reset(del_shape=False)
+            if self.shape is not None:
+                self.shape.draw(self.canvas, self.projection)               
 
     def run(self):
         self.mainloop()
