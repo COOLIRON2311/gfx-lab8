@@ -139,6 +139,30 @@ class Point(Shape):
             return self.x == __o.x and self.y == __o.y and self.z == __o.z
         return False
 
+    def createLookMat(self, camTarget, upVec):
+        #print("LookMat")
+        camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
+        camDir = camDir / np.linalg.norm(camDir)
+        camRight = np.cross(upVec,camDir)
+        camRight = camRight / np.linalg.norm(camRight)
+        camUp = np.cross(camDir,camRight)
+        mat1 = np.array([
+            [camRight[0],camRight[1],camRight[2],0],
+            [camUp[0], camUp[1], camUp[2],0],
+            [camDir[0], camDir[1], camDir[2],0],
+            [0,0,0,1]
+        ])
+        #mat1 = mat1.T
+        mat2 = np.array([
+            [1,0,0,-Camera.position.x],
+            [0,1,0,-Camera.position.y],
+            [0,0,1,-Camera.position.z],
+            [0,0,0,1]
+        ])
+        #mat2 = mat2.T
+        lookMat = np.matmul(mat1,mat2)
+        return lookMat
+
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = True):
         if projection == Projection.Perspective:
             # print(App.dist)
@@ -171,42 +195,32 @@ class Point(Shape):
         elif projection == Projection.FreeCamera:
             # print("camera")
             # print(Camera.position)
-            camTarget = np.array([0.0, 0.0, 0.0])
-            camDir = np.array([Camera.position.x, Camera.position.y, Camera.position.z]) - camTarget
-            camDir = camDir / np.linalg.norm(camDir)
-
-            upVec = np.array([0.0, 1.0, 0.0])
-            camRight = np.cross(upVec, camDir)
-            camRight = camRight / np.linalg.norm(camRight)
-            camUp = np.cross(camDir, camRight)
-
-            mat1 = np.array([
-                [camRight[0], camRight[1], camRight[2], 0],
-                [camUp[0], camUp[1], camUp[2], 0],
-                [camDir[0], camDir[1], camDir[2], 0],
-                [0, 0, 0, 1]
-            ])
-            mat1 = mat1.T
-            mat2 = np.array([
-                [1, 0, 0, -Camera.position.x],
-                [0, 1, 0, -Camera.position.y],
-                [0, 0, 1, -Camera.position.z],
-                [0, 0, 0, 1]
-            ])
-            #mat2 = mat2.T
-            lookMat = np.matmul(mat1, mat2)
+            lookMat = self.createLookMat(np.array([Camera.position.x,Camera.position.y, Camera.position.z])+Camera.camFront,np.array([0.0,1.0,0.0]))
+            lookMat = lookMat.T
+            angle = 45.0
+            ratio = 1
+            near = 0.001
+            far = 1000.0
+            tan_half = np.tan(np.radians(angle)/2)
+            perMat = np.array([
+                [1/(tan_half*ratio), 0, 0, 0],
+                [0, 1/(tan_half), 0, 0],
+                [0, 0, -(far+near)/(far-near), -(2*far*near)/(far-near)],
+                [0, 0, -1, 0]])
 
             coor = np.array([self.x, self.y, self.z, 1])
-            res = np.matmul(coor, lookMat)
+            res = np.matmul(coor,lookMat)
+            res = np.matmul(res,perMat)
 
-            x = res[0] + 450
-            y = res[1] + 200
-            z = res[2]
+
+            x = res[0]/(res[3]) + App.W/2
+            y = res[1]/(res[3]) + App.H/2
+            z = res[2]/res[3]
         else:
             x = self.x
             y = self.y
             z = self.z
-        if draw_points:
+        if draw_points and x < 1000 and y < 1000:
             canvas.set_at((int(x), int(y)), pg.Color(color))
         return x, y, z
 
@@ -476,10 +490,14 @@ class Camera:
         Backward = False
         Left = False
         Right = False
-    position = Point(-1000, 1000, 1000)
-    horRot = 0.0
-    verRot = 0.0
-    camFront = np.array([0, 0, -1])
+        RotLeft = False
+        RotRight = False
+        RotUp = False
+        RotDown = False
+    position = Point(0, 0, 1000)
+    horRot = -90.0 # yaw
+    verRot = 0.0 # pitch
+    camFront = np.array([0.0, 0.0, -1.0])
     camSpeed = 10
 
     @staticmethod
@@ -496,20 +514,52 @@ class Camera:
 
     @staticmethod
     def move_left():
-        r = np.cross(Camera.camFront, [0, 1, 0])
+        r = np.cross(Camera.camFront, [0.0, 1.0, 0.0])
+        r = r / np.linalg.norm(r)
+        Camera.position.x -= r[0] * Camera.camSpeed
+        Camera.position.y -= r[1] * Camera.camSpeed
+        Camera.position.z -= r[2] * Camera.camSpeed
+
+    @staticmethod
+    def move_right():
+        r = np.cross(Camera.camFront, [0.0, 1.0, 0.0])
         r = r / np.linalg.norm(r)
         Camera.position.x += r[0] * Camera.camSpeed
         Camera.position.y += r[1] * Camera.camSpeed
         Camera.position.z += r[2] * Camera.camSpeed
 
     @staticmethod
-    def move_right():
-        r = np.cross(Camera.camFront, [0, 1, 0])
-        r = r / np.linalg.norm(r)
-        Camera.position.x -= r[0] * Camera.camSpeed
-        Camera.position.y -= r[1] * Camera.camSpeed
-        Camera.position.z -= r[2] * Camera.camSpeed
+    def rotateLeft():
+        Camera.horRot -= 1.0
+        Camera.rotate()
 
+    @staticmethod
+    def rotateRight():
+        Camera.horRot += 1.0
+        Camera.rotate()
+
+    @staticmethod
+    def rotateUp():
+        Camera.verRot -= 1.0
+        if Camera.verRot > 89.0:
+            Camera.verRot = 89.0
+        Camera.rotate()
+
+    @staticmethod
+    def rotateDown():
+        Camera.verRot += 1.0
+        if Camera.verRot < -89.0:
+            Camera.verRot = -89.0
+        Camera.rotate()
+
+    @staticmethod
+    def rotate():
+        f = np.array([0.0,0.0,0.0])
+        f[0] = np.cos(np.radians(Camera.horRot))*np.cos(np.radians(Camera.verRot))
+        f[1] = np.sin(np.radians(Camera.verRot))
+        f[2] = np.sin(np.radians(Camera.horRot))*np.cos(np.radians(Camera.verRot))
+        n = np.linalg.norm(f)
+        Camera.camFront = f/n
 
 class Models:
     """
@@ -1179,6 +1229,18 @@ class App(tk.Tk):
                     elif e.key == pg.K_d:
                         Camera.is_moving = True
                         Camera.moving.Right = True
+                    elif e.key == pg.K_LEFT:
+                        Camera.is_moving = True
+                        Camera.moving.RotLeft = True
+                    elif e.key == pg.K_RIGHT:
+                        Camera.is_moving = True
+                        Camera.moving.RotRight = True
+                    elif e.key == pg.K_UP:
+                        Camera.is_moving = True
+                        Camera.moving.RotUp = True
+                    elif e.key == pg.K_DOWN:
+                        Camera.is_moving = True
+                        Camera.moving.RotDown = True
                 elif e.type == pg.KEYUP:
                     if e.key == pg.K_w:
                         Camera.is_moving = False
@@ -1192,7 +1254,18 @@ class App(tk.Tk):
                     if e.key == pg.K_d:
                         Camera.is_moving = False
                         Camera.moving.Right = False
-
+                    elif e.key == pg.K_LEFT:
+                        Camera.is_moving = False
+                        Camera.moving.RotLeft = False
+                    elif e.key == pg.K_RIGHT:
+                        Camera.is_moving = False
+                        Camera.moving.RotRight = False
+                    elif e.key == pg.K_UP:
+                        Camera.is_moving = False
+                        Camera.moving.RotUp = False
+                    elif e.key == pg.K_DOWN:
+                        Camera.is_moving = False
+                        Camera.moving.RotDown = False
             if Camera.is_moving:
                 if Camera.moving.Forward:
                     Camera.move_forward()
@@ -1202,7 +1275,14 @@ class App(tk.Tk):
                     Camera.move_left()
                 if Camera.moving.Right:
                     Camera.move_right()
-
+                if Camera.moving.RotLeft:
+                    Camera.rotateLeft()
+                if Camera.moving.RotRight:
+                    Camera.rotateRight()
+                if Camera.moving.RotUp:
+                    Camera.rotateUp()
+                if Camera.moving.RotDown:
+                    Camera.rotateDown()
                 self.reset(del_shape=False)
                 if self.shape is not None:
                     self.shape.draw(self.canvas, self.projection)
