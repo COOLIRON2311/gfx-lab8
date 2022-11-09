@@ -139,28 +139,31 @@ class Point(Shape):
             return self.x == __o.x and self.y == __o.y and self.z == __o.z
         return False
 
+    def __array__(self):
+        return np.array([self.x, self.y, self.z])
+
     def createLookMat(self, camTarget, upVec):
-        #print("LookMat")
-        camDir = np.array([Camera.position.x,Camera.position.y, Camera.position.z]) - camTarget
+        # print("LookMat")
+        camDir = np.array([Camera.position.x, Camera.position.y, Camera.position.z]) - camTarget
         camDir = camDir / np.linalg.norm(camDir)
-        camRight = np.cross(upVec,camDir)
+        camRight = np.cross(upVec, camDir)
         camRight = camRight / np.linalg.norm(camRight)
-        camUp = np.cross(camDir,camRight)
+        camUp = np.cross(camDir, camRight)
         mat1 = np.array([
-            [camRight[0],camRight[1],camRight[2],0],
-            [camUp[0], camUp[1], camUp[2],0],
-            [camDir[0], camDir[1], camDir[2],0],
-            [0,0,0,1]
+            [camRight[0], camRight[1], camRight[2], 0],
+            [camUp[0], camUp[1], camUp[2], 0],
+            [camDir[0], camDir[1], camDir[2], 0],
+            [0, 0, 0, 1]
         ])
         #mat1 = mat1.T
         mat2 = np.array([
-            [1,0,0,-Camera.position.x],
-            [0,1,0,-Camera.position.y],
-            [0,0,1,-Camera.position.z],
-            [0,0,0,1]
+            [1, 0, 0, -Camera.position.x],
+            [0, 1, 0, -Camera.position.y],
+            [0, 0, 1, -Camera.position.z],
+            [0, 0, 0, 1]
         ])
         #mat2 = mat2.T
-        lookMat = np.matmul(mat1,mat2)
+        lookMat = np.matmul(mat1, mat2)
         return lookMat
 
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = True):
@@ -195,7 +198,8 @@ class Point(Shape):
         elif projection == Projection.FreeCamera:
             # print("camera")
             # print(Camera.position)
-            lookMat = self.createLookMat(np.array([Camera.position.x,Camera.position.y, Camera.position.z])+Camera.camFront,np.array([0.0,1.0,0.0]))
+            lookMat = self.createLookMat(np.array([Camera.position.x, Camera.position.y, Camera.position.z]) +
+                                         Camera.camFront, np.array([0.0, 1.0, 0.0]))
             lookMat = lookMat.T
             angle = 45.0
             ratio = 1
@@ -209,9 +213,8 @@ class Point(Shape):
                 [0, 0, -1, 0]])
 
             coor = np.array([self.x, self.y, self.z, 1])
-            res = np.matmul(coor,lookMat)
-            res = np.matmul(res,perMat)
-
+            res = np.matmul(coor, lookMat)
+            res = np.matmul(res, perMat)
 
             x = res[0]/(res[3]) + App.W/2
             y = res[1]/(res[3]) + App.H/2
@@ -302,16 +305,14 @@ class Polygon(Shape):
                      sum(point.z for point in self.points) / len(self.points))
 
     def calculate_normal(self) -> Point:
-        """Calculate the normal of the polygon using Newell's method"""
-        normal = Point(0, 0, 0)
-        ln = len(self.points)
-        for i in range(ln):
-            currentv = self.points[i]
-            nextv = self.points[(i + 1) % ln]
-            normal.x += (currentv.y - nextv.y) * (currentv.z + nextv.z)
-            normal.y += (currentv.z - nextv.z) * (currentv.x + nextv.x)
-            normal.z += (currentv.x - nextv.x) * (currentv.y + nextv.y)
-        return normal.normalized()
+        p1 = np.array(self.points[0])
+        p2 = np.array(self.points[1])
+        p3 = np.array(self.points[2])
+        v1 = p2 - p1
+        v2 = p3 - p1
+        normal = np.cross(v1, v2)
+        return Point(normal[0], normal[1], normal[2])
+
 
 
 @dataclass
@@ -319,8 +320,14 @@ class Polyhedron(Shape):
     polygons: list[Polygon]
 
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
+        p = Camera.camFront
         for poly in self.polygons:
-            poly.draw(canvas, projection, color, draw_points)
+            v0 = np.array(poly.points[0])
+            n = np.array(poly.normal)
+            if np.dot(v0 - p, n) < 0:
+                poly.draw(canvas, projection, color, draw_points)
+            # else:
+                # poly.draw(canvas, projection, 'red', draw_points)
 
     def transform(self, matrix: np.ndarray):
         points = {point for poly in self.polygons for point in poly.points}
@@ -495,10 +502,11 @@ class Camera:
         RotUp = False
         RotDown = False
     position = Point(0, 0, 1000)
-    horRot = -90.0 # yaw
-    verRot = 0.0 # pitch
+    horRot = -90.0  # yaw
+    verRot = 0.0  # pitch
     camFront = np.array([0.0, 0.0, -1.0])
     camSpeed = 10
+    camRotSpeed = 0.1
 
     @staticmethod
     def move_forward():
@@ -530,36 +538,37 @@ class Camera:
 
     @staticmethod
     def rotateLeft():
-        Camera.horRot -= 1.0
+        Camera.horRot -= Camera.camRotSpeed
         Camera.rotate()
 
     @staticmethod
     def rotateRight():
-        Camera.horRot += 1.0
+        Camera.horRot += Camera.camRotSpeed
         Camera.rotate()
 
     @staticmethod
     def rotateUp():
-        Camera.verRot -= 1.0
+        Camera.verRot -= Camera.camRotSpeed
         if Camera.verRot > 89.0:
             Camera.verRot = 89.0
         Camera.rotate()
 
     @staticmethod
     def rotateDown():
-        Camera.verRot += 1.0
+        Camera.verRot += Camera.camRotSpeed
         if Camera.verRot < -89.0:
             Camera.verRot = -89.0
         Camera.rotate()
 
     @staticmethod
     def rotate():
-        f = np.array([0.0,0.0,0.0])
+        f = np.array([0.0, 0.0, 0.0])
         f[0] = np.cos(np.radians(Camera.horRot))*np.cos(np.radians(Camera.verRot))
         f[1] = np.sin(np.radians(Camera.verRot))
         f[2] = np.sin(np.radians(Camera.horRot))*np.cos(np.radians(Camera.verRot))
         n = np.linalg.norm(f)
         Camera.camFront = f/n
+
 
 class Models:
     """
