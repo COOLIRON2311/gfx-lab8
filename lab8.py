@@ -14,7 +14,6 @@ import pygame as pg
 # pylint: disable=no-member
 # pylint: disable=eval-used
 
-
 class Projection(Enum):
     Perspective = 0
     Axonometric = 1
@@ -323,7 +322,7 @@ class Polygon(Shape):
                  for i in range(ln)]
         for line in lines:
             line.draw(canvas, projection, color, draw_points)
-        self.normal.draw(canvas, projection, 'red', draw_points=True)
+        # self.normal.draw(canvas, projection, 'red', draw_points=True)
 
     def transform(self, matrix: np.ndarray):
         for point in self.points:
@@ -348,7 +347,7 @@ class Polygon(Shape):
         #     normal.x += (currentv.y - nextv.y) * (currentv.z + nextv.z)
         #     normal.y += (currentv.z - nextv.z) * (currentv.x + nextv.x)
         #     normal.z += (currentv.x - nextv.x) * (currentv.y + nextv.y)
-        # return normal.normalized()        
+        # return normal.normalized()
         p1 = np.array(self.points[0])
         p2 = np.array(self.points[1])
         p3 = np.array(self.points[2])
@@ -363,14 +362,18 @@ class Polyhedron(Shape):
     polygons: list[Polygon]
 
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
+        bfc: bool = App.bfc.get()
         p = Camera.camFront + np.array(Camera.position)
         for poly in self.polygons:
-            v0 = np.array(poly.points[0])
-            n = np.array(poly.normal)#/np.linalg.norm(np.array(poly.normal))d
-            if np.dot(v0 - p, n) < 0:
+            if bfc:
+                v0 = np.array(poly.points[0])
+                n = np.array(poly.normal)#/np.linalg.norm(np.array(poly.normal))d
+                if np.dot(v0 - p, n) < 0:
+                    poly.draw(canvas, projection, color, draw_points)
+                # else:
+                #     poly.draw(canvas, projection, 'red', draw_points)
+            else:
                 poly.draw(canvas, projection, color, draw_points)
-            # else:
-            #     poly.draw(canvas, projection, 'red', draw_points)
 
     def transform(self, matrix: np.ndarray):
         points = {point for poly in self.polygons for point in poly.points}
@@ -770,12 +773,14 @@ class App(tk.Tk):
     phi: int = 60
     theta: int = 45
     dist: int = 1000
+    bfc: tk.BooleanVar
+    zbuf: tk.BooleanVar
 
     def __init__(self):
         super().__init__()
         self.title("ManualCAD 4D")
         self.resizable(0, 0)
-        self.geometry(f"{self.W}x{70}+0+0")
+        self.geometry(f"{self.W+200}x{70}+0+0")
         self.shape_type_idx = 0
         self.shape_type = ShapeType(self.shape_type_idx)
         self.func_idx = 0
@@ -810,6 +815,13 @@ class App(tk.Tk):
         self._grid = tk.BooleanVar()
         self.grid = tk.Checkbutton(self.buttons, text="Сетка", var=self._grid, command=self.reset)
 
+        App.bfc = tk.BooleanVar()
+        self._bfc = tk.Checkbutton(self.buttons, text="Back-face culling", var=App.bfc, command=self.reset)
+
+        App.zbuf = tk.BooleanVar()
+        self._zbuf = tk.Checkbutton(self.buttons, text="Z-buffer", var=App.zbuf, command=self.reset)
+
+
         self.shapesbox = tk.Listbox(
             self.buttons, selectmode=tk.SINGLE, height=1, width=16)
         self.scroll1 = tk.Scrollbar(
@@ -834,10 +846,14 @@ class App(tk.Tk):
         self.dists.pack(side=tk.LEFT, padx=5)
         self.axis.pack(side=tk.LEFT, padx=5)
         self.grid.pack(side=tk.LEFT, padx=5)
+        self._bfc.pack(side=tk.LEFT, padx=5)
+        self._zbuf.pack(side=tk.LEFT, padx=5)
 
         self.phis.set(self.phi)
         self.thetas.set(self.theta)
         self.dists.set(self.dist)
+        App.bfc.set(False)
+        App.zbuf.set(False)
 
         self.scroll1.pack(side=tk.RIGHT, fill=tk.Y)
         self.shapesbox.pack(side=tk.RIGHT, padx=1)
