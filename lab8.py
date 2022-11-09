@@ -276,6 +276,8 @@ class Line(Shape):
         dy = b.y - a.y
 
         if dx == 0:
+            if a.y > b.y:
+                a, b = b, a
             for y in range(int(a.y), int(b.y)):
                 canvas.set_at((int(a.x), y), pg.Color(color))
             return
