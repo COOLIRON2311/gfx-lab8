@@ -268,6 +268,34 @@ class Line(Shape):
         self.p1.transform(matrix)
         self.p2.transform(matrix)
 
+    def vu(self, a: Point, b: Point) -> None:
+        if (a.x > b.x):
+            a, b = b, a
+
+        dx = b.x - a.x
+        dy = b.y - a.y
+
+        gradient = dy/dx
+
+        y = a.y+gradient
+
+        if (abs(gradient) < 1):
+            if (a.x > b.x):
+                a, b = b, a
+
+            for i in range(a.x+1, b.x-1):
+                self.canvas.create_line(i, y, i, y+1)  # single color lines
+                y += gradient
+        else:
+            if (a.y > b.y):
+                a, b = b, a      
+            gradient2 = dx/dy
+            x = a.x + gradient2
+            for i in range(a.y+1, b.y-1):
+                self.canvas.create_line(x, i, x+1, i)
+                x += gradient2
+
+
     @property
     def center(self) -> 'Point':
         return Point((self.p1.x + self.p2.x) / 2, (self.p1.y + self.p2.y) / 2,
