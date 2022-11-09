@@ -305,12 +305,21 @@ class Polygon(Shape):
                      sum(point.z for point in self.points) / len(self.points))
 
     def calculate_normal(self) -> Point:
+        # normal = Point(0, 0, 0)
+        # ln = len(self.points)
+        # for i in range(ln):
+        #     currentv = self.points[i]
+        #     nextv = self.points[(i + 1) % ln]
+        #     normal.x += (currentv.y - nextv.y) * (currentv.z + nextv.z)
+        #     normal.y += (currentv.z - nextv.z) * (currentv.x + nextv.x)
+        #     normal.z += (currentv.x - nextv.x) * (currentv.y + nextv.y)
+        # return normal.normalized()        
         p1 = np.array(self.points[0])
         p2 = np.array(self.points[1])
         p3 = np.array(self.points[2])
-        v1 = p2 - p1
-        v2 = p3 - p1
-        normal = np.cross(v1, v2)
+        v1 = p1 - p2
+        v2 = p3 - p2
+        normal = np.cross(v2, v1)
         return Point(normal[0], normal[1], normal[2])
 
 
@@ -320,14 +329,14 @@ class Polyhedron(Shape):
     polygons: list[Polygon]
 
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
-        p = Camera.camFront
+        p = Camera.camFront + np.array(Camera.position)
         for poly in self.polygons:
             v0 = np.array(poly.points[0])
-            n = np.array(poly.normal)
+            n = np.array(poly.normal)#/np.linalg.norm(np.array(poly.normal))
             if np.dot(v0 - p, n) < 0:
                 poly.draw(canvas, projection, color, draw_points)
             # else:
-                # poly.draw(canvas, projection, 'red', draw_points)
+            #     poly.draw(canvas, projection, 'red', draw_points)
 
     def transform(self, matrix: np.ndarray):
         points = {point for poly in self.polygons for point in poly.points}
@@ -506,7 +515,7 @@ class Camera:
     verRot = 0.0  # pitch
     camFront = np.array([0.0, 0.0, -1.0])
     camSpeed = 10
-    camRotSpeed = 0.1
+    camRotSpeed = 1
 
     @staticmethod
     def move_forward():
@@ -607,9 +616,9 @@ class Models:
             p7 = Point(size, size, size)
             p8 = Point(0, size, size)
             polygons = [
-                Polygon([p1, p2, p3, p4]),
+                Polygon([p4, p3, p2, p1]),
                 Polygon([p1, p2, p6, p5]),
-                Polygon([p2, p3, p7, p6]),
+                Polygon([p3, p7, p6, p2]),
                 Polygon([p3, p4, p8, p7]),
                 Polygon([p4, p1, p5, p8]),
                 Polygon([p5, p6, p7, p8])
