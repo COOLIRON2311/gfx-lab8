@@ -261,40 +261,47 @@ class Line(Shape):
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
         p1X, p1Y, _ = self.p1.draw(canvas, projection, color, draw_points)
         p2X, p2Y, _ = self.p2.draw(canvas, projection, color, draw_points=draw_points)
-        pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
+        self.__wu(canvas, Point(p1X, p1Y, _), Point(p2X, p2Y, _), color)
+        # pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
         # canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
 
     def transform(self, matrix: np.ndarray):
         self.p1.transform(matrix)
         self.p2.transform(matrix)
 
-    def vu(self, a: Point, b: Point) -> None:
-        if (a.x > b.x):
+    def __wu(self, canvas: pg.Surface, a: Point, b: Point, color: str) -> None:
+        if a.x > b.x:
             a, b = b, a
 
         dx = b.x - a.x
         dy = b.y - a.y
 
+        if dx == 0:
+            for y in range(int(a.y), int(b.y)):
+                canvas.set_at((int(a.x), y), pg.Color(color))
+            return
+
         gradient = dy/dx
 
         y = a.y+gradient
 
-        if (abs(gradient) < 1):
-            if (a.x > b.x):
+        if abs(gradient) < 1:
+            if a.x > b.x:
                 a, b = b, a
 
-            for i in range(a.x+1, b.x-1):
-                self.canvas.create_line(i, y, i, y+1)  # single color lines
+            for i in range(int(a.x), int(b.x)):
+                canvas.set_at((i, int(y)), pg.Color(color))
+                canvas.set_at((i, int(y+1)), pg.Color(color))  # single color lines
                 y += gradient
         else:
-            if (a.y > b.y):
-                a, b = b, a      
+            if a.y > b.y:
+                a, b = b, a
             gradient2 = dx/dy
             x = a.x + gradient2
-            for i in range(a.y+1, b.y-1):
-                self.canvas.create_line(x, i, x+1, i)
+            for i in range(int(a.y), int(b.y)):
+                canvas.set_at((int(x), i), pg.Color(color))
+                canvas.set_at((int(x+1), i), pg.Color(color))  # single color lines
                 x += gradient2
-
 
     @property
     def center(self) -> 'Point':
@@ -342,7 +349,6 @@ class Polygon(Shape):
         return Point(normal[0], normal[1], normal[2])
 
 
-
 @dataclass
 class Polyhedron(Shape):
     polygons: list[Polygon]
@@ -352,10 +358,10 @@ class Polyhedron(Shape):
         for poly in self.polygons:
             v0 = np.array(poly.points[0])
             n = np.array(poly.normal)
-            if np.dot(v0 - p, n) < 0:
-                poly.draw(canvas, projection, color, draw_points)
+            # if np.dot(v0 - p, n) < 0:
+            poly.draw(canvas, projection, color, draw_points)
             # else:
-                # poly.draw(canvas, projection, 'red', draw_points)
+            # poly.draw(canvas, projection, 'red', draw_points)
 
     def transform(self, matrix: np.ndarray):
         points = {point for poly in self.polygons for point in poly.points}
