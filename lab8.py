@@ -269,6 +269,16 @@ class Line(Shape):
         self.p1.transform(matrix)
         self.p2.transform(matrix)
 
+    def get_x(self, y):
+        if self.p1.y == self.p2.y:
+            return self.p1.x
+        return self.p1.x + (self.p2.x - self.p1.x) * (y - self.p1.y) / (self.p2.y - self.p1.y)
+
+    def get_y(self, x):
+        if self.p1.x == self.p2.x:
+            return self.p1.y
+        return self.p1.y + (self.p2.y - self.p1.y) * (x - self.p1.x) / (self.p2.x - self.p1.x)
+
     def __wu(self, canvas: pg.Surface, a: Point, b: Point, color: pg.Color) -> None:
         if a.x > b.x:
             a, b = b, a
@@ -331,6 +341,23 @@ class Polygon(Shape):
         for line in lines:
             line.draw(canvas, projection, color, draw_points)
         # self.normal.draw(canvas, projection, 'red', draw_points=True)
+
+    def fill(self, canvas: pg.Surface, color: pg.Color):
+        # TODO: fix this
+        ln = len(self.points)
+        lines = [Line(self.points[i], self.points[(i + 1) % ln])
+                 for i in range(ln)]
+        ymax = max([p.y for p in self.points])
+        ymin = min([p.y for p in self.points])
+        for y in range(int(ymin), int(ymax)):
+            x_intersections = []
+            for line in lines:
+                if line.p1.y <= y < line.p2.y or line.p2.y <= y < line.p1.y:
+                    x_intersections.append(line.get_x(y))
+            x_intersections.sort()
+            for i in range(0, len(x_intersections), 2):
+                for x in range(int(x_intersections[i]), int(x_intersections[i+1])):
+                    ZBuffer.draw_point(canvas, x, y, self.points[0].z, color)
 
     def transform(self, matrix: np.ndarray):
         for point in self.points:
@@ -407,6 +434,9 @@ class Polyhedron(Shape):
                      sum(polygon.center.z for polygon in self.polygons) /
                      len(self.polygons))
 
+    def fill(self, canvas: pg.Surface, color: pg.Color):
+        for poly in self.polygons:
+            poly.fill(canvas, color)
 
 @dataclass
 class RotationBody(Shape):
@@ -1082,6 +1112,16 @@ class App(tk.Tk):
                 t.start()
                 t.join()
         if self.shape is not None:
+            if App.zbuf.get():
+                t = Models.Tetrahedron()
+                t.transform(np.array([
+                    [1, 0, 0, -100],
+                    [0, 1, 0, 0],
+                    [0, 0, 1, -100],
+                    [0, 0, 0, 1]]))
+                t.draw(self.canvas, self.projection)
+                t.fill(self.canvas, pg.Color('red'))
+                self.shape.fill(self.canvas, pg.Color('green'))
             self.shape.draw(self.canvas, self.projection)
             pg.display.update()
 
@@ -1376,7 +1416,7 @@ class ZBuffer:
 
     @staticmethod
     def draw_point(canvas: pg.Surface, x: int, y: int, z: float, color: pg.Color):
-        if ZBuffer.enabled:
+        if ZBuffer.enabled and 0 <= x < App.W and 0 <= y < App.H:
             if ZBuffer.data[y, x] > z:
                 ZBuffer.data[y, x] = z
                 canvas.set_at((x, y), color)
