@@ -14,6 +14,7 @@ import pygame as pg
 # pylint: disable=no-member
 # pylint: disable=eval-used
 
+
 class Projection(Enum):
     Perspective = 0
     Axonometric = 1
@@ -260,7 +261,7 @@ class Line(Shape):
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
         p1X, p1Y, _ = self.p1.draw(canvas, projection, color, draw_points)
         p2X, p2Y, _ = self.p2.draw(canvas, projection, color, draw_points=draw_points)
-        self.__wu(canvas, Point(p1X, p1Y, _), Point(p2X, p2Y, _), color)
+        self.__wu(canvas, Point(p1X, p1Y, _), Point(p2X, p2Y, _), pg.Color(color))
         # pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
         # canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
 
@@ -268,7 +269,7 @@ class Line(Shape):
         self.p1.transform(matrix)
         self.p2.transform(matrix)
 
-    def __wu(self, canvas: pg.Surface, a: Point, b: Point, color: str) -> None:
+    def __wu(self, canvas: pg.Surface, a: Point, b: Point, color: pg.Color) -> None:
         if a.x > b.x:
             a, b = b, a
 
@@ -279,7 +280,8 @@ class Line(Shape):
             if a.y > b.y:
                 a, b = b, a
             for y in range(int(a.y), int(b.y)):
-                canvas.set_at((int(a.x), y), pg.Color(color))
+                # canvas.set_at((int(a.x), y), color)
+                ZBuffer.draw_point(canvas, int(a.x), y, a.z, color)
             return
 
         gradient = dy/dx
@@ -291,8 +293,10 @@ class Line(Shape):
                 a, b = b, a
 
             for i in range(int(a.x), int(b.x)):
-                canvas.set_at((i, int(y)), pg.Color(color))
-                canvas.set_at((i, int(y+1)), pg.Color(color))  # single color lines
+                # canvas.set_at((i, int(y)), color)
+                # canvas.set_at((i, int(y+1)), color)  # single color lines
+                ZBuffer.draw_point(canvas, i, int(y), a.z, color)
+                ZBuffer.draw_point(canvas, i, int(y+1), a.z, color)
                 y += gradient
         else:
             if a.y > b.y:
@@ -300,8 +304,10 @@ class Line(Shape):
             gradient2 = dx/dy
             x = a.x + gradient2
             for i in range(int(a.y), int(b.y)):
-                canvas.set_at((int(x), i), pg.Color(color))
-                canvas.set_at((int(x+1), i), pg.Color(color))  # single color lines
+                # canvas.set_at((int(x), i), color)
+                # canvas.set_at((int(x+1), i), color) # single color lines
+                ZBuffer.draw_point(canvas, int(x), i, a.z, color)
+                ZBuffer.draw_point(canvas, int(x+1), i, a.z, color)
                 x += gradient2
 
     @property
@@ -369,7 +375,7 @@ class Polyhedron(Shape):
         for poly in self.polygons:
             if bfc:
                 v0 = np.array(poly.points[0])
-                n = np.array(poly.normal)#/np.linalg.norm(np.array(poly.normal))d
+                n = np.array(poly.normal)  # /np.linalg.norm(np.array(poly.normal))d
                 if np.dot(v0 - p, n) < 0:
                     poly.draw(canvas, projection, color, draw_points)
                 # else:
@@ -823,7 +829,6 @@ class App(tk.Tk):
         App.zbuf = tk.BooleanVar()
         self._zbuf = tk.Checkbutton(self.buttons, text="Z-buffer", var=App.zbuf, command=self.reset)
 
-
         self.shapesbox = tk.Listbox(
             self.buttons, selectmode=tk.SINGLE, height=1, width=16)
         self.scroll1 = tk.Scrollbar(
@@ -893,6 +898,7 @@ class App(tk.Tk):
 
     def reset(self, *_, del_shape=True):
         self.canvas.fill('#393939')
+        ZBuffer.clear()
         # pg.display.update()
         if del_shape:
             self.shape = None
@@ -1357,6 +1363,25 @@ class App(tk.Tk):
                 if self.shape is not None:
                     self.shape.draw(self.canvas, self.projection)
                     pg.display.update()
+
+
+class ZBuffer:
+    enabled: bool = False
+    data: np.ndarray = np.full((App.H, App.W), np.inf)
+
+    @staticmethod
+    def clear():
+        ZBuffer.data.fill(np.inf)
+        ZBuffer.enabled = App.zbuf.get()
+
+    @staticmethod
+    def draw_point(canvas: pg.Surface, x: int, y: int, z: float, color: pg.Color):
+        if ZBuffer.enabled:
+            if ZBuffer.data[y, x] > z:
+                ZBuffer.data[y, x] = z
+                canvas.set_at((x, y), color)
+        else:
+            canvas.set_at((x, y), color)
 
 
 if __name__ == "__main__":
