@@ -290,8 +290,8 @@ class Line(Shape):
             if a.y > b.y:
                 a, b = b, a
             for y in range(int(a.y), int(b.y)):
-                # canvas.set_at((int(a.x), y), color)
-                ZBuffer.draw_point(canvas, int(a.x), y, a.z, color)
+                canvas.set_at((int(a.x), y), color)
+                # ZBuffer.draw_point(canvas, int(a.x), y, a.z, color)
             return
 
         gradient = dy/dx
@@ -303,10 +303,10 @@ class Line(Shape):
                 a, b = b, a
 
             for i in range(int(a.x), int(b.x)):
-                # canvas.set_at((i, int(y)), color)
-                # canvas.set_at((i, int(y+1)), color)  # single color lines
-                ZBuffer.draw_point(canvas, i, int(y), a.z, color)
-                ZBuffer.draw_point(canvas, i, int(y+1), a.z, color)
+                canvas.set_at((i, int(y)), color)
+                canvas.set_at((i, int(y+1)), color)  # single color lines
+                # ZBuffer.draw_point(canvas, i, int(y), a.z, color)
+                # ZBuffer.draw_point(canvas, i, int(y+1), a.z, color)
                 y += gradient
         else:
             if a.y > b.y:
@@ -314,10 +314,10 @@ class Line(Shape):
             gradient2 = dx/dy
             x = a.x + gradient2
             for i in range(int(a.y), int(b.y)):
-                # canvas.set_at((int(x), i), color)
-                # canvas.set_at((int(x+1), i), color) # single color lines
-                ZBuffer.draw_point(canvas, int(x), i, a.z, color)
-                ZBuffer.draw_point(canvas, int(x+1), i, a.z, color)
+                canvas.set_at((int(x), i), color)
+                canvas.set_at((int(x+1), i), color) # single color lines
+                # ZBuffer.draw_point(canvas, int(x), i, a.z, color)
+                # ZBuffer.draw_point(canvas, int(x+1), i, a.z, color)
                 x += gradient2
 
     @property
