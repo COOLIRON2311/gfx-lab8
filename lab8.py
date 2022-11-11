@@ -1115,8 +1115,7 @@ class App(tk.Tk):
         if self.shape is not None:
             if App.zbuf.get():
                 self.__temp_model()
-                # t.fill(self.canvas, pg.Color('red'))
-                # self.shape.fill(self.canvas, pg.Color('green'))
+                self.shape.fill(self.canvas, pg.Color('green'))
             self.shape.draw(self.canvas, self.projection)
             pg.display.update()
 
@@ -1128,6 +1127,7 @@ class App(tk.Tk):
             [0, 0, 1, -100],
             [0, 0, 0, 1]]))
         t.draw(self.canvas, self.projection, color=pg.Color('red'))
+        t.fill(self.canvas, pg.Color('red'))
 
     def r_click(self, _):
         if self.shape is None:
@@ -1407,6 +1407,8 @@ class App(tk.Tk):
                 if self.shape is not None:
                     if App.zbuf.get():
                         self.__temp_model()
+                        if isinstance(self.shape, Polyhedron):
+                            self.shape.fill(self.canvas, pg.Color('green'))
                     self.shape.draw(self.canvas, self.projection)
                     pg.display.update()
 
