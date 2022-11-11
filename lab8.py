@@ -438,6 +438,7 @@ class Polyhedron(Shape):
         for poly in self.polygons:
             poly.fill(canvas, color)
 
+
 @dataclass
 class RotationBody(Shape):
     polygon: Polygon
@@ -1113,17 +1114,20 @@ class App(tk.Tk):
                 t.join()
         if self.shape is not None:
             if App.zbuf.get():
-                t = Models.Tetrahedron()
-                t.transform(np.array([
-                    [1, 0, 0, -100],
-                    [0, 1, 0, 0],
-                    [0, 0, 1, -100],
-                    [0, 0, 0, 1]]))
-                t.draw(self.canvas, self.projection)
-                t.fill(self.canvas, pg.Color('red'))
-                self.shape.fill(self.canvas, pg.Color('green'))
+                self.__temp_model()
+                # t.fill(self.canvas, pg.Color('red'))
+                # self.shape.fill(self.canvas, pg.Color('green'))
             self.shape.draw(self.canvas, self.projection)
             pg.display.update()
+
+    def __temp_model(self):
+        t = Models.Tetrahedron()
+        t.transform(np.array([
+            [1, 0, 0, -100],
+            [0, 1, 0, 0],
+            [0, 0, 1, -100],
+            [0, 0, 0, 1]]))
+        t.draw(self.canvas, self.projection, color=pg.Color('red'))
 
     def r_click(self, _):
         if self.shape is None:
@@ -1401,6 +1405,8 @@ class App(tk.Tk):
                     Camera.rotateDown()
                 self.reset(del_shape=False)
                 if self.shape is not None:
+                    if App.zbuf.get():
+                        self.__temp_model()
                     self.shape.draw(self.canvas, self.projection)
                     pg.display.update()
 
