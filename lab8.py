@@ -262,6 +262,7 @@ class Line(Shape):
         p1X, p1Y, _ = self.p1.draw(canvas, projection, color, draw_points)
         p2X, p2Y, _ = self.p2.draw(canvas, projection, color, draw_points=draw_points)
         self.__wu(canvas, Point(p1X, p1Y, _), Point(p2X, p2Y, _), pg.Color(color))
+        return Point(p1X, p1Y, _), Point(p2X, p2Y, _)
         # pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
         # canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
 
@@ -345,8 +346,12 @@ class Polygon(Shape):
     def fill(self, canvas: pg.Surface, color: pg.Color):
         # TODO: fix this
         ln = len(self.points)
-        lines = [Line(self.points[i], self.points[(i + 1) % ln])
+        tlines = [Line(self.points[i], self.points[(i + 1) % ln])
                  for i in range(ln)]
+        lines = []
+        for l in tlines:
+            p1, p2 = l.draw(canvas,Projection.FreeCamera)
+            lines.append(Line(p1,p2))
         ymax = max([p.y for p in self.points])
         ymin = min([p.y for p in self.points])
         for y in range(int(ymin), int(ymax)):
