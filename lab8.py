@@ -1,7 +1,7 @@
 import tkinter as tk
 from dataclasses import dataclass, field
 from enum import Enum
-from math import cos, pi, radians, sin
+from math import cos, pi, radians, sin, sqrt
 from threading import Thread
 from tkinter import filedialog as fd
 from tkinter import messagebox as mb
@@ -166,7 +166,7 @@ class Point(Shape):
         lookMat = np.matmul(mat1, mat2)
         return lookMat
 
-    def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = True):
+    def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = True, dry_run=False):
         if projection == Projection.Perspective:
             # print(App.dist)
             per = np.array([
@@ -223,7 +223,7 @@ class Point(Shape):
             x = self.x
             y = self.y
             z = self.z
-        if draw_points and x < 1000 and y < 1000:
+        if draw_points and x < 1000 and y < 1000 and not dry_run:
             canvas.set_at((int(x), int(y)), pg.Color(color))
         return x, y, z
 
@@ -316,7 +316,7 @@ class Line(Shape):
             x = a.x + gradient2
             for i in range(int(a.y), int(b.y)):
                 canvas.set_at((int(x), i), color)
-                canvas.set_at((int(x+1), i), color) # single color lines
+                canvas.set_at((int(x+1), i), color)  # single color lines
                 # ZBuffer.draw_point(canvas, int(x), i, a.z, color)
                 # ZBuffer.draw_point(canvas, int(x+1), i, a.z, color)
                 x += gradient2
@@ -344,25 +344,28 @@ class Polygon(Shape):
         # self.normal.draw(canvas, projection, 'red', draw_points=True)
 
     def fill(self, canvas: pg.Surface, color: pg.Color):
-        # TODO: fix this
         ln = len(self.points)
         tlines = [Line(self.points[i], self.points[(i + 1) % ln])
-                 for i in range(ln)]
-        lines = []
+                  for i in range(ln)]
+        lines: list[Line] = []
+        points: set[Point] = set()
         for l in tlines:
-            p1, p2 = l.draw(canvas,Projection.FreeCamera)
-            lines.append(Line(p1,p2))
-        ymax = max([p.y for p in self.points])
-        ymin = min([p.y for p in self.points])
+            p1, p2 = l.draw(canvas, Projection.FreeCamera)
+            lines.append(Line(p1, p2))
+            points.add(p1)
+            points.add(p2)
+        ymax = max(p.y for p in points)
+        ymin = min(p.y for p in points)
         for y in range(int(ymin), int(ymax)):
-            x_intersections = []
+            intersections: list[Point] = []
             for line in lines:
                 if line.p1.y <= y < line.p2.y or line.p2.y <= y < line.p1.y:
-                    x_intersections.append(line.get_x(y))
-            x_intersections.sort()
-            for i in range(0, len(x_intersections), 2):
-                for x in range(int(x_intersections[i]), int(x_intersections[i+1])):
-                    ZBuffer.draw_point(canvas, x, y, self.points[0].z, color)
+                    intersections.append(Point(line.get_x(y), y, 0))
+            intersections.sort(key=lambda p: p.x)
+            for i in range(0, len(intersections), 2):
+                for x in range(int(intersections[i].x), int(intersections[i+1].x)):
+                    z = self.points[0].z  # TODO: calculate z
+                    ZBuffer.draw_point(canvas, x, y, z, color)
 
     def transform(self, matrix: np.ndarray):
         for point in self.points:
@@ -597,6 +600,10 @@ class Camera:
     camFront = np.array([0.0, 0.0, -1.0])
     camSpeed = 10
     camRotSpeed = 1
+
+    @staticmethod
+    def dist_to(x, y, z) -> float:
+        return sqrt((x - Camera.position.x) ** 2 + (y - Camera.position.y) ** 2 + (z - Camera.position.z) ** 2)
 
     @staticmethod
     def move_forward():
@@ -1121,7 +1128,8 @@ class App(tk.Tk):
             if App.zbuf.get():
                 self.__temp_model()
                 self.shape.fill(self.canvas, pg.Color('green'))
-            self.shape.draw(self.canvas, self.projection)
+            else:
+                self.shape.draw(self.canvas, self.projection)
             pg.display.update()
 
     def __temp_model(self):
@@ -1131,7 +1139,7 @@ class App(tk.Tk):
             [0, 1, 0, 0],
             [0, 0, 1, -100],
             [0, 0, 0, 1]]))
-        t.draw(self.canvas, self.projection, color=pg.Color('red'))
+        # t.draw(self.canvas, self.projection, color=pg.Color('red'))
         t.fill(self.canvas, pg.Color('red'))
 
     def r_click(self, _):
@@ -1414,7 +1422,8 @@ class App(tk.Tk):
                         self.__temp_model()
                         if isinstance(self.shape, Polyhedron):
                             self.shape.fill(self.canvas, pg.Color('green'))
-                    self.shape.draw(self.canvas, self.projection)
+                    else:
+                        self.shape.draw(self.canvas, self.projection)
                     pg.display.update()
 
 
@@ -1429,9 +1438,10 @@ class ZBuffer:
 
     @staticmethod
     def draw_point(canvas: pg.Surface, x: int, y: int, z: float, color: pg.Color):
+        d = Camera.dist_to(x, y, z)
         if ZBuffer.enabled and 0 <= x < App.W and 0 <= y < App.H:
-            if ZBuffer.data[y, x] > z:
-                ZBuffer.data[y, x] = z
+            if ZBuffer.data[y, x] > d:
+                ZBuffer.data[y, x] = d
                 canvas.set_at((x, y), color)
         else:
             canvas.set_at((x, y), color)
