@@ -259,10 +259,10 @@ class Line(Shape):
     p2: Point
 
     def draw(self, canvas: pg.Surface, projection: Projection, color: str = 'white', draw_points: bool = False):
-        p1X, p1Y, _ = self.p1.draw(canvas, projection, color, draw_points)
-        p2X, p2Y, _ = self.p2.draw(canvas, projection, color, draw_points=draw_points)
-        self.__wu(canvas, Point(p1X, p1Y, _), Point(p2X, p2Y, _), pg.Color(color))
-        return Point(p1X, p1Y, _), Point(p2X, p2Y, _)
+        p1X, p1Y, p1Z = self.p1.draw(canvas, projection, color, draw_points)
+        p2X, p2Y, p2Z = self.p2.draw(canvas, projection, color, draw_points=draw_points)
+        self.__wu(canvas, Point(p1X, p1Y, p1Z), Point(p2X, p2Y, p2Z), pg.Color(color))
+        return Point(p1X, p1Y, p1Z), Point(p2X, p2Y, p2Z)
         # pg.draw.line(canvas, pg.Color(color), (p1X, p1Y), (p2X, p2Y))
         # canvas.create_line(p1X, p1Y, p2X, p2Y, fill=color)
 
@@ -279,6 +279,11 @@ class Line(Shape):
         if self.p1.x == self.p2.x:
             return self.p1.y
         return self.p1.y + (self.p2.y - self.p1.y) * (x - self.p1.x) / (self.p2.x - self.p1.x)
+    
+    def get_z(self, y):
+        if self.p1.y == self.p2.y:
+            return self.p1.z
+        return self.p1.z + (self.p2.z - self.p1.z) * (y -  self.p1.y) / (self.p2.y-self.p1.y)
 
     def __wu(self, canvas: pg.Surface, a: Point, b: Point, color: pg.Color) -> None:
         if a.x > b.x:
@@ -343,6 +348,22 @@ class Polygon(Shape):
             line.draw(canvas, projection, color, draw_points)
         # self.normal.draw(canvas, projection, 'red', draw_points=True)
 
+    def interpolate(self,x1,z1,x2,z2):
+        res = []
+        
+        d = abs(int(x2)-int(x1))
+        if d < 0.001:
+            res.append(z1)
+            return res
+        
+        step = (z2-z1)/(x2-x1)
+        
+        for x in np.arange(x1,x2):
+            res.append(z1)
+            z1+=step
+            
+        return res
+
     def fill(self, canvas: pg.Surface, color: pg.Color):
         ln = len(self.points)
         tlines = [Line(self.points[i], self.points[(i + 1) % ln])
@@ -356,16 +377,24 @@ class Polygon(Shape):
             points.add(p2)
         ymax = max(p.y for p in points)
         ymin = min(p.y for p in points)
+        
+        far = max(p.z for p in points)
+        near = min(p.z for p in points)
+        
         for y in range(int(ymin), int(ymax)):
             intersections: list[Point] = []
             for line in lines:
                 if line.p1.y <= y < line.p2.y or line.p2.y <= y < line.p1.y:
-                    intersections.append(Point(line.get_x(y), y, 0))
+                    t = self.interpolate(line.p1.x, line.p1.z, line.p2.x, line.p2.z)
+                    intersections.append(Point(line.get_x(y), y, line.get_z(y)))
             intersections.sort(key=lambda p: p.x)
             for i in range(0, len(intersections), 2):
+                z = self.interpolate(intersections[i].x,intersections[i].z,intersections[i+1].x,intersections[i+1].z)
                 for x in range(int(intersections[i].x), int(intersections[i+1].x)):
-                    z = self.points[0].z  # TODO: calculate z
-                    ZBuffer.draw_point(canvas, x, y, z, color)
+                    #z = self.points[0].z  # TODO: calculate z
+                    #z = far/(far - near) + 1/intersections[i].z * ((-2*far*near)/(far-near))
+                    cz = z[x-int(intersections[i].x)]
+                    ZBuffer.draw_point(canvas, x, y, cz, color)
 
     def transform(self, matrix: np.ndarray):
         for point in self.points:
@@ -443,8 +472,11 @@ class Polyhedron(Shape):
                      len(self.polygons))
 
     def fill(self, canvas: pg.Surface, color: pg.Color):
+        count = 0
+        colors = [pg.Color("red"),pg.Color("green"),pg.Color("blue"),pg.Color('yellow')]
         for poly in self.polygons:
-            poly.fill(canvas, color)
+            poly.fill(canvas, colors[count%4])
+            count+=1
 
 
 @dataclass
@@ -1135,9 +1167,9 @@ class App(tk.Tk):
     def __temp_model(self):
         t = Models.Tetrahedron()
         t.transform(np.array([
-            [1, 0, 0, -100],
+            [1, 0, 0, -50],
             [0, 1, 0, 0],
-            [0, 0, 1, -100],
+            [0, 0, 1, -50],
             [0, 0, 0, 1]]))
         # t.draw(self.canvas, self.projection, color=pg.Color('red'))
         t.fill(self.canvas, pg.Color('red'))
@@ -1438,10 +1470,10 @@ class ZBuffer:
 
     @staticmethod
     def draw_point(canvas: pg.Surface, x: int, y: int, z: float, color: pg.Color):
-        d = Camera.dist_to(x, y, z)
+        #d = Camera.dist_to(x, y, z)
         if ZBuffer.enabled and 0 <= x < App.W and 0 <= y < App.H:
-            if ZBuffer.data[y, x] > d:
-                ZBuffer.data[y, x] = d
+            if ZBuffer.data[y, x] > z:
+                ZBuffer.data[y, x] = z
                 canvas.set_at((x, y), color)
         else:
             canvas.set_at((x, y), color)
